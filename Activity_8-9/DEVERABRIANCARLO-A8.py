@@ -1,7 +1,7 @@
-# live_ids.py
 from scapy.all import sniff
 from collections import defaultdict
 import time
+import csv
 import os
 
 # Threshold for suspicious activity
@@ -10,16 +10,18 @@ THRESHOLD = 5
 # Packet counts per source
 packet_counts = defaultdict(int)
 
-# Log file
-LOG_FILE = "ids_alerts.log"
+# Log file (CSV)
+LOG_FILE = "ids_alerts.csv"
 
-def log_alert(message):
-    """Write alerts to both console and file."""
+def log_alert(src_ip, count, message):
+    """Write alerts to both console and CSV file."""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    entry = f"[{timestamp}] {message}\n"
-    print(entry.strip())  # Print to console
-    with open(LOG_FILE, "a") as f:
-        f.write(entry)
+    print(f"[{timestamp}] {message}")  # Print to console
+    
+    # Append to CSV
+    with open(LOG_FILE, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([timestamp, src_ip, count, message])
 
 def packet_callback(packet):
     if packet.haslayer("IP"):
@@ -29,15 +31,17 @@ def packet_callback(packet):
 
         # Check threshold
         if packet_counts[src_ip] > THRESHOLD:
-            log_alert(f"!!! ALERT: Suspicious activity detected from {src_ip}. "
+            log_alert(src_ip, packet_counts[src_ip],
+                      f"Suspicious activity detected from {src_ip}. "
                       f"Packets sent: {packet_counts[src_ip]}")
 
 if __name__ == "__main__":
     print("Starting live packet capture... (press Ctrl+C to stop)")
 
-    # Create/clear the log file at start
-    with open(LOG_FILE, "w") as f:
-        f.write("=== IDS Log Started ===\n")
+    # Create/clear the CSV log file with headers
+    with open(LOG_FILE, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Timestamp", "Source IP", "Packet Count", "Message"])
 
     sniff(prn=packet_callback, count=50)  # capture 50 packets
     print(f"\nAlerts logged to {LOG_FILE}")
